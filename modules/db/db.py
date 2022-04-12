@@ -10,7 +10,7 @@ def connect():
         db_conf = yaml.safe_load(db_conf_file)
 
     try:
-        return psycopg2.connect(**db_conf)
+        return psycopg2.connect(**db_conf, connect_timeout=10)
     except psycopg2.Error:
         return None
 

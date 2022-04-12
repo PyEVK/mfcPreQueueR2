@@ -21,8 +21,8 @@ def connect():
         )
 
         channel = connection.channel()
-        print(connection)
-        print(channel)
+        # print(connection)
+        # print(channel)
 
         return channel
     except Exception as e:

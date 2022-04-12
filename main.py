@@ -24,19 +24,30 @@ def main():
     log_init()
 
     # Connect to Database
+    print("Database connection")
     dbh = db.connect()
+    if dbh is None:
+        print("Database connection error")
+        logging.error("Database connection error")
+        return None
 
     # Connect to AMQP and get channel
+    print("AMQP connection")
     amqp_channel = amqp.connect()
 
     # Prepare for multiprocessing
+    print("Initialization")
     manager = multiprocessing.Manager()
     prequeue_lst = manager.dict()
+    call_counter = manager.Value('i', 0)
     evt_queue_new_item = manager.Event()
+    evt_upd_scheduler = manager.Event()
 
     # Init list
     prequeue.init(dbh, prequeue_lst)
+    dbh.close()
 
+    print("Prepare for launch subprocesses")
     executor = ProcessPoolExecutor()
 
 
@@ -73,6 +84,8 @@ def log_init():
     logger.addHandler(log_handler)
 
     logger.info("-=== Application started ===---")
+
+    logging.getLogger('pika').setLevel(logging.ERROR)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
 pytz~=2022.1
 PyYAML~=6.0
 psycopg2-binary~=2.9.3
+pika~=1.2.0
