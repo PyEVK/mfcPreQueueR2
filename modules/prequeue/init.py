@@ -1,10 +1,9 @@
 import logging
-
-import psycopg2
+from modules import db
 from modules.helpers import prequeue
 
 
-def init(dbh, lst):
+def init(lst):
     sql_params = ()
     sql_query = """
         SELECT
@@ -31,6 +30,7 @@ def init(dbh, lst):
     """
 
     lst.clear()
+    dbh = db.connect()
     with dbh.cursor() as cur:
         cur.execute(sql_query, sql_params)
         for row in cur:
@@ -95,7 +95,4 @@ def init(dbh, lst):
             else:
                 lst[mfc_number] = [row_item]
 
-    from pprint import pprint
-    pprint(dict(lst))
-
-
+    dbh.close()

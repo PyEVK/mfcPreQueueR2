@@ -4,11 +4,13 @@ import os
 import pathlib
 from datetime import datetime
 import pytz
-from modules import db
+# from modules import db
 from modules import amqp
 from modules import prequeue
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
+import signal
+import psutil
 
 # Set working directory to file location
 os.chdir(pathlib.Path(__file__).parent.absolute())
@@ -23,18 +25,6 @@ EKT = pytz.timezone('Asia/Yekaterinburg')
 def main():
     log_init()
 
-    # Connect to Database
-    print("Database connection")
-    dbh = db.connect()
-    if dbh is None:
-        print("Database connection error")
-        logging.error("Database connection error")
-        return None
-
-    # Connect to AMQP and get channel
-    print("AMQP connection")
-    amqp_channel = amqp.connect()
-
     # Prepare for multiprocessing
     print("Initialization")
     manager = multiprocessing.Manager()
@@ -42,13 +32,72 @@ def main():
     call_counter = manager.Value('i', 0)
     evt_queue_new_item = manager.Event()
     evt_upd_scheduler = manager.Event()
+    evt_error = manager.Event()
 
     # Init list
-    prequeue.init(dbh, prequeue_lst)
-    dbh.close()
+    prequeue.init(prequeue_lst)
 
-    print("Prepare for launch subprocesses")
-    executor = ProcessPoolExecutor()
+    print("Launch subprocesses")
+
+    """
+    amqp_source_processing = multiprocessing.Process(
+        target=amqp.source_processing,
+        args=(
+            prequeue_lst,
+            evt_queue_new_item,
+            evt_upd_scheduler,
+            evt_error,
+        )
+    )
+
+    amqp_result_processing = multiprocessing.Process(
+        target=amqp.result_processing,
+        args=(
+            prequeue_lst,
+            evt_queue_new_item,
+            evt_upd_scheduler,
+            evt_error,
+        )
+    )
+
+    amqp_source_processing.start()
+    amqp_result_processing.start()
+
+    amqp_source_processing.join()
+    amqp_result_processing.join()
+    """
+
+    cf_features = []
+    with ProcessPoolExecutor() as executor:
+        cf_features.append(executor.submit(
+            amqp.source_processing,
+            prequeue_lst,
+            evt_queue_new_item,
+            evt_upd_scheduler,
+            evt_error
+        ))
+
+        cf_features.append(executor.submit(
+            amqp.result_processing,
+            prequeue_lst,
+            evt_queue_new_item,
+            evt_upd_scheduler,
+            evt_error
+        ))
+
+        # Waiting for complete
+        for future in as_completed(cf_features):
+            url = cf_features
+            try:
+                pass
+            except Exception as exc:
+                print('%r generated an exception: %s' % (url, exc))
+                executor.shutdown(wait=False, cancel_futures=True)
+                kill_child_processes(os.getpid())
+            else:
+                print('%r completed')
+                executor.shutdown(wait=False, cancel_futures=True)
+                kill_child_processes(os.getpid())
 
 
 # Init logging system
@@ -86,6 +135,19 @@ def log_init():
     logger.info("-=== Application started ===---")
 
     logging.getLogger('pika').setLevel(logging.ERROR)
+
+
+
+def kill_child_processes(parent_pid, sig=signal.SIGTERM):
+    try:
+        parent = psutil.Process(parent_pid)
+    except psutil.NoSuchProcess:
+        return
+
+    children = parent.children(recursive=True)
+
+    for process in children:
+        process.send_signal(sig)
 
 
 if __name__ == "__main__":
