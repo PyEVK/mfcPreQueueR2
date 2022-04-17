@@ -1,5 +1,6 @@
 from modules import amqp
 from modules import db
+import requests
 import schedule
 import time
 
@@ -7,6 +8,13 @@ import time
 def source_processing(lst, evt_queue_new_item, evt_upd_scheduler, evt_error):
     dbh = db.connect()
     ch = amqp.connect()
+
+    try:
+        get_api_data(2)
+    except Exception as e:
+        str_e = str(e)
+        print(str_e)
+        print("AMQP Exception", str_e, str_e.encode("UTF-8"))
 
     with ch:
         print("amqp channel", ch)
@@ -30,11 +38,10 @@ def source_processing(lst, evt_queue_new_item, evt_upd_scheduler, evt_error):
                 queue="pbx_mfc_prequeue_lst",
                 auto_ack=True,
                 on_message_callback=source_lst_processing,
-                arguments={lst, dbh}
             )
             """ """
 
-            print(" [*] Waiting for messages. To exit press CTRL+C")
+            print(" [*] Waiting for SOURCE messages. To exit press CTRL+C")
             ch.start_consuming()
 
         except Exception as e:
@@ -43,10 +50,29 @@ def source_processing(lst, evt_queue_new_item, evt_upd_scheduler, evt_error):
             print("AMQP Exception", str_e, str_e.encode("UTF-8"))
 
 
-def source_lst_processing(ch, method, properties, body, **kwargs):
-    print("callback args", kwargs)
+def get_api_data(days=2):
+    uri = "http://172.29.125.19:8080/api/prequeue-phone-bot/prequeue.php"
+
+    payload = {
+        "number_day": days,
+        "status": "NOT_ACTIVATED"
+    }
+
+    headers = {
+        'Authorization': 'Bearer 6325293f6aa5826b6cea517986546bb7'}
+
+    r = requests.get(
+        url=uri,
+        headers=headers,
+        params=payload
+    )
+
+    print(r.status_code)
+    print(r.json())
 
 
+def source_lst_processing(ch, method, properties, body):
+    pass
     """
     print("Source processing:::Started")
     cnt = 0
