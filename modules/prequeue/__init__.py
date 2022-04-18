@@ -1,1 +1,1 @@
-from modules.prequeue.init import init
+from modules.prequeue.init import *

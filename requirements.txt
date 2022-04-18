@@ -4,3 +4,4 @@ psycopg2-binary~=2.9.3
 aio-pika~=7.1.2
 psutil~=5.9.0
 pika~=1.2.0
+APScheduler~=3.9.1

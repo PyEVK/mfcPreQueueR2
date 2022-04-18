@@ -1,9 +1,8 @@
 import logging
-from modules import db
 from modules.helpers import prequeue
 
 
-def init(lst):
+def get_init_lst(dbh, lst):
     sql_params = ()
     sql_query = """
         SELECT
@@ -19,10 +18,7 @@ def init(lst):
             last_call_date,
             last_call_disposition,
             retry_count,
-            call_result,
-            created_at,
-            updated_at,
-            deleted_at
+            call_result
         FROM public.prequeue_stat
         WHERE 
             coalesce(call_result, 0) = 0
@@ -30,7 +26,6 @@ def init(lst):
     """
 
     lst.clear()
-    dbh = db.connect()
     with dbh.cursor() as cur:
         cur.execute(sql_query, sql_params)
         for row in cur:
@@ -46,25 +41,7 @@ def init(lst):
                 last_call_date, \
                 last_call_disposition, \
                 retry_count, \
-                call_result, \
-                created_at, \
-                updated_at, \
-                deleted_at = row
-
-            next_call_time = \
-                prequeue.next_call_time(mfc_date, mfc_time_from, retry_count, last_call_date, scheduler=None)
-
-            if next_call_time is None:
-                logging.info("Too old record %s (%s %s)", uuid, mfc_date, mfc_time_from)
-#                upd_sql = """
-#                    UPDATE public.prequeue_stat
-#                    SET call_result = 2000, updated_at = NOW()
-#                    WHERE id = %s
-#                    """
-#                with dbh.cursor() as upd_cur:
-#                    upd_cur.execute(upd_sql, (row_id, ))
-
-                continue
+                call_result = row
 
             row_item = {
                     "id": row_id,
@@ -78,21 +55,27 @@ def init(lst):
                     "last_call_date": last_call_date,
                     "last_call_disposition": last_call_disposition,
                     "retry_count": retry_count,
-                    "call_result": call_result,
-                    "next_call_time": next_call_time
+                    "call_result": call_result
                 }
 
-            if mfc_number in lst:
-                for idx in lst[mfc_number]:
-                    if prequeue.is_duplicate(idx, row_item):
-                        logging.info("Duplicate row:::%s,%s,%s,%s",
-                                     idx["mfc_number"], idx["mfc_date"], idx["mfc_time_from"], idx["mfc_phone"])
-                        print("Duplicate row", row_item)
-                    else:
-                        lst_item = lst[mfc_number]
-                        lst_item.append(row_item)
-                        lst[mfc_number] = lst_item
-            else:
-                lst[mfc_number] = [row_item]
+            lst[uuid] = row_item
 
-    dbh.close()
+
+def get_settings(dbh, settings):
+    sql_params = ()
+    sql_query = """
+            SELECT
+                id,
+                settings
+            FROM public.prequeue_settings
+            WHERE 
+                id = 1 
+        """
+
+    with dbh.cursor() as cur:
+        cur.execute(sql_query, sql_params)
+        row_id, row_settings = cur.fetchone()
+
+    row_settings['download_time'] = "16:30"
+
+    settings["settings"] = row_settings

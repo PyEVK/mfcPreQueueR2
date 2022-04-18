@@ -1,10 +1,11 @@
 import logging
+import traceback
 from logging.handlers import TimedRotatingFileHandler
 import os
 import pathlib
 from datetime import datetime
 import pytz
-# from modules import db
+from modules import db
 from modules import amqp
 from modules import prequeue
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -16,7 +17,7 @@ import psutil
 os.chdir(pathlib.Path(__file__).parent.absolute())
 
 # Set logging level for project
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.DEBUG
 
 # TimeZone of project
 EKT = pytz.timezone('Asia/Yekaterinburg')
@@ -29,15 +30,50 @@ def main():
     print("Initialization")
     manager = multiprocessing.Manager()
     prequeue_lst = manager.dict()
+    prequeue_settings = manager.dict()
     call_counter = manager.Value('i', 0)
     evt_queue_new_item = manager.Event()
     evt_upd_scheduler = manager.Event()
     evt_error = manager.Event()
 
-    # Init list
-    prequeue.init(prequeue_lst)
+    # Get init states
+    dbh = db.connect()
+    if dbh is None:
+        print("DB connection error")
+        exit(-1)
 
-    print("Launch subprocesses")
+    prequeue.get_init_lst(dbh, prequeue_lst)
+    prequeue.get_settings(dbh, prequeue_settings)
+
+    """
+    source_processing = multiprocessing.Process(
+        target=amqp.source_processing,
+        args=(
+            prequeue_lst,
+            prequeue_settings,
+            evt_queue_new_item,
+            evt_upd_scheduler,
+            evt_error,
+        )
+    )
+
+    result_processing = multiprocessing.Process(
+        target=amqp.result_processing,
+        args=(
+            prequeue_lst,
+            prequeue_settings,
+            evt_queue_new_item,
+            evt_upd_scheduler,
+            evt_error,
+        )
+    )
+
+    source_processing.start()
+    result_processing.start()
+
+    source_processing.join()
+    result_processing.join()
+    """
 
     """
     amqp_source_processing = multiprocessing.Process(
@@ -67,11 +103,13 @@ def main():
     amqp_result_processing.join()
     """
 
+    """ """
     cf_features = []
     with ProcessPoolExecutor() as executor:
         cf_features.append(executor.submit(
             amqp.source_processing,
             prequeue_lst,
+            prequeue_settings,
             evt_queue_new_item,
             evt_upd_scheduler,
             evt_error
@@ -80,33 +118,38 @@ def main():
         cf_features.append(executor.submit(
             amqp.result_processing,
             prequeue_lst,
+            prequeue_settings,
             evt_queue_new_item,
             evt_upd_scheduler,
+            call_counter,
             evt_error
         ))
 
         # Waiting for complete
         for future in as_completed(cf_features):
-            url = cf_features
+            proc = cf_features
             try:
                 pass
             except Exception as exc:
-                print('%r generated an exception: %s' % (url, exc))
+                print('%r generated an exception: %s' % (proc, exc))
+                print(traceback.format_exc())
                 executor.shutdown(wait=False, cancel_futures=True)
                 kill_child_processes(os.getpid())
             else:
-                print('%r completed')
+                print('%r completed' % (proc, ))
                 executor.shutdown(wait=False, cancel_futures=True)
                 kill_child_processes(os.getpid())
+    """ """
 
 
 # Init logging system
 def get_log_file_name():
     current_date = datetime.now()
-    log_dir = "./logs/" + current_date.strftime("%Y-%m/")
+    # log_dir = "./logs/" + current_date.strftime("%Y-%m/")
+    log_dir = "./logs/"
     os.makedirs(log_dir, exist_ok=True)
     # log_file = "{:0>2}".format(current_date.strftime("%d_%H%M%S") + "_main.log")
-    log_file = "{:0>2}".format(current_date.strftime("%d") + "_main.log")
+    log_file = "main_{:0>2}".format(current_date.strftime("%Y-%m-%d") + ".log")
     return log_dir + log_file
 
 
