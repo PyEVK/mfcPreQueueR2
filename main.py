@@ -8,6 +8,7 @@ import pytz
 from modules import db
 from modules import amqp
 from modules import prequeue
+from modules import source_processing, result_processing, dialer
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 import signal
@@ -33,8 +34,10 @@ def main():
     prequeue_settings = manager.dict()
     call_counter = manager.Value('i', 0)
     evt_queue_new_item = manager.Event()
-    evt_upd_scheduler = manager.Event()
+    evt_scheduler_src = manager.Event()
+    evt_scheduler_dialer = manager.Event()
     evt_error = manager.Event()
+    lock_new_item = manager.Lock()
 
     # Get init states
     dbh = db.connect()
@@ -106,27 +109,39 @@ def main():
     """ """
     cf_features = []
     with ProcessPoolExecutor() as executor:
-        # """
+
         cf_features.append(executor.submit(
-            amqp.source_processing,
+            source_processing,
             prequeue_lst,
             prequeue_settings,
             evt_queue_new_item,
-            evt_upd_scheduler,
-            evt_error
+            evt_scheduler_src,
+            evt_error,
+            lock_new_item
         ))
-        # """
-        """
+
         cf_features.append(executor.submit(
-            amqp.result_processing,
+            result_processing,
             prequeue_lst,
             prequeue_settings,
             evt_queue_new_item,
-            evt_upd_scheduler,
+            evt_scheduler_src,
+            evt_scheduler_dialer,
             call_counter,
-            evt_error
+            evt_error,
+            lock_new_item
         ))
-        """
+
+        cf_features.append(executor.submit(
+            dialer,
+            prequeue_lst,
+            prequeue_settings,
+            evt_queue_new_item,
+            evt_scheduler_dialer,
+            call_counter,
+            evt_error,
+            lock_new_item
+        ))
 
         # Waiting for complete
         for future in as_completed(cf_features):

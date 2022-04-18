@@ -6,13 +6,13 @@ import logging
 import time
 
 
-def result_processing(lst, settings, evt_queue_new_item, evt_upd_scheduler, call_counter, evt_error):
+def result_processing(lst, settings, evt_new_item, evt_scheduler_src, evt_scheduler_dialer, call_counter, evt_error, lock):
     dbh = db.connect()
 
-    def cb_amqp_message(channel, method_frame, header_frame, body):
-        process_amqp_message(dbh, lst, settings, evt_queue_new_item, evt_upd_scheduler, call_counter, evt_error, body)
+    def cb_amqp_message(ch, method_frame, header_frame, body):
+        process_amqp_message(dbh, lst, settings, evt_new_item, evt_scheduler_src, evt_scheduler_dialer, call_counter, evt_error, body)
         print('header_frame', header_frame)
-        channel.basic_ack(method_frame.delivery_tag)
+        ch.basic_ack(method_frame.delivery_tag)
 
     if dbh is None:
         logging.error("result_processing: DB connection error. Terminating")
@@ -29,6 +29,5 @@ def result_processing(lst, settings, evt_queue_new_item, evt_upd_scheduler, call
             return None
 
 
-def process_amqp_message(dbh, lst, settings, evt_queue_new_item, evt_upd_scheduler, call_counter, evt_error, body):
-    # raise Exception("Invalid message received")
+def process_amqp_message(dbh, lst, settings, evt_new_item, evt_scheduler_src, evt_scheduler_dialer, call_counter, evt_error, body):
     print(body)

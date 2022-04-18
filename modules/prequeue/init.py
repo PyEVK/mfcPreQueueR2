@@ -76,6 +76,7 @@ def get_settings(dbh, settings):
         cur.execute(sql_query, sql_params)
         row_id, row_settings = cur.fetchone()
 
-    row_settings['download_time'] = "16:30"
+    row_settings['download_time'] = "08:12"
+    row_settings['download_days'] = "5"
 
     settings["settings"] = row_settings
