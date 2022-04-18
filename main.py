@@ -106,6 +106,7 @@ def main():
     """ """
     cf_features = []
     with ProcessPoolExecutor() as executor:
+        # """
         cf_features.append(executor.submit(
             amqp.source_processing,
             prequeue_lst,
@@ -114,7 +115,8 @@ def main():
             evt_upd_scheduler,
             evt_error
         ))
-
+        # """
+        """
         cf_features.append(executor.submit(
             amqp.result_processing,
             prequeue_lst,
@@ -124,6 +126,7 @@ def main():
             call_counter,
             evt_error
         ))
+        """
 
         # Waiting for complete
         for future in as_completed(cf_features):

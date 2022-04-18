@@ -29,3 +29,12 @@ def connect():
         logging.error("AMQP Connect: %s", str(e))
         print("AMQP Connect: %s", str(e))
         return None
+
+
+def get_message(ch, method, properties, body):
+    print('ch', ch)
+    print('method', method)
+    print('properties', properties)
+    print('body', body)
+
+    return dict({})
